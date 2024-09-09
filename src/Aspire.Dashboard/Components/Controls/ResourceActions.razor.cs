@@ -49,7 +49,7 @@ public partial class ResourceActions : ComponentBase
             OnClick = OnConsoleLogs.InvokeAsync
         });
 
-        var menuCommands = Commands.Where(c => !c.IsHighlighted).ToList();
+        var menuCommands = Commands.Where(c => !c.IsHighlighted && c.State != CommandViewModelState.Hidden).ToList();
         if (menuCommands.Count > 0)
         {
             _menuItems.Add(new MenuButtonItem { IsDivider = true });

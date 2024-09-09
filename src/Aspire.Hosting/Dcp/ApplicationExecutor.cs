@@ -1909,4 +1909,18 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
                     .Replace("127.0.0.1", hostName)
                     .Replace("[::1]", hostName);
     }
+
+    internal async Task StopResourceAsync(string resourceName)
+    {
+        _ = _applicationModel;
+        _ = resourceName;
+        await Task.Yield();
+    }
+
+    internal async Task StartResourceAsync(string resourceName)
+    {
+        _ = _applicationModel;
+        _ = resourceName;
+        await Task.Yield();
+    }
 }

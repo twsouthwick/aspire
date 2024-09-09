@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Dashboard;
 using Aspire.Hosting.Publishing;
 using Aspire.Hosting.Utils;
 
@@ -47,7 +48,8 @@ public static class ExecutableResourceBuilderExtensions
                           {
                               context.Args.AddRange(args);
                           }
-                      });
+                      })
+                      .WithLifeCycleCommands();
     }
 
     /// <summary>

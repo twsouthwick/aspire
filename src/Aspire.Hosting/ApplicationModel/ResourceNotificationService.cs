@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
@@ -195,6 +196,8 @@ public class ResourceNotificationService
         {
             var previousState = GetCurrentSnapshot(resource, notificationState);
 
+            previousState = UpdateCommands(resource, previousState);
+
             var newState = stateFactory(previousState);
 
             notificationState.LastSnapshot = newState;
@@ -228,8 +231,82 @@ public class ResourceNotificationService
                     newState.ExitCode, string.Join(", ", newState.EnvironmentVariables.Select(e => $"{e.Name} = {e.Value}")), string.Join(", ", newState.Urls.Select(u => $"{u.Name} = {u.Url}")),
                     string.Join(", ", newState.Properties.Select(p => $"{p.Name} = {p.Value}")));
             }
+        }
 
-            return Task.CompletedTask;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Use command annotations to update resource snapshot.
+    /// </summary>
+    private static CustomResourceSnapshot UpdateCommands(IResource resource, CustomResourceSnapshot previousState)
+    {
+        ImmutableArray<ResourceCommandSnapshot>.Builder? builder = null;
+
+        foreach (var annotation in resource.Annotations.OfType<ResourceCommandAnnotation>())
+        {
+            var existingCommand = FindByType(previousState.Commands, annotation.Type);
+
+            if (existingCommand == null)
+            {
+                if (builder == null)
+                {
+                    builder = ImmutableArray.CreateBuilder<ResourceCommandSnapshot>(previousState.Commands.Length);
+                    builder.AddRange(previousState.Commands);
+                }
+
+                // Command doesn't exist in snapshot. Create from annotation.
+                builder.Add(CreateCommandFromAnnotation(annotation, previousState));
+            }
+            else
+            {
+                // Command already exists in snapshot. Update its state based on annotation callback.
+                var newState = annotation.UpdateState(new UpdateCommandStateContext { ResourceSnapshot = previousState });
+
+                if (existingCommand.State != newState)
+                {
+                    if (builder == null)
+                    {
+                        builder = ImmutableArray.CreateBuilder<ResourceCommandSnapshot>(previousState.Commands.Length);
+                        builder.AddRange(previousState.Commands);
+                    }
+
+                    var newCommand = existingCommand with
+                    {
+                        State = newState
+                    };
+
+                    builder.Replace(existingCommand, newCommand);
+                }
+            }
+        }
+
+        // Commands are unchanged. Return unchanged state.
+        if (builder == null)
+        {
+            return previousState;
+        }
+
+        return previousState with { Commands = builder.ToImmutable() };
+
+        static ResourceCommandSnapshot? FindByType(ImmutableArray<ResourceCommandSnapshot> commands, string type)
+        {
+            for (var i = 0; i < commands.Length; i++)
+            {
+                if (commands[i].Type == type)
+                {
+                    return commands[i];
+                }
+            }
+
+            return null;
+        }
+
+        static ResourceCommandSnapshot CreateCommandFromAnnotation(ResourceCommandAnnotation annotation, CustomResourceSnapshot previousState)
+        {
+            var state = annotation.UpdateState(new UpdateCommandStateContext { ResourceSnapshot = previousState });
+
+            return new ResourceCommandSnapshot(annotation.Type, state, annotation.DisplayName, annotation.IconName, annotation.IsHighlighted);
         }
     }
 

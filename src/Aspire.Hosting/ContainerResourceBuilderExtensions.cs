@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Dashboard;
 using Aspire.Hosting.Utils;
 
 namespace Aspire.Hosting;
@@ -151,6 +152,7 @@ public static class ContainerResourceBuilderExtensions
         // if the annotation doesn't exist, create it with the given image and add it to the collection
         var containerImageAnnotation = new ContainerImageAnnotation() { Image = image, Tag = tag };
         builder.Resource.Annotations.Add(containerImageAnnotation);
+        builder.WithLifeCycleCommands();
         return builder;
     }
 
