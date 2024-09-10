@@ -56,6 +56,10 @@ internal sealed class ExecutableReplicaSetSpec
     // Template describing the configuration of child Executable objects created by the replica set
     [JsonPropertyName("template")]
     public ExecutableTemplate Template { get; set; } = new ExecutableTemplate();
+
+    // Should this resource be stopped?
+    [JsonPropertyName("stop")]
+    public bool? Stop { get; set; }
 }
 
 internal sealed class ExecutableReplicaSetStatus : V1Status

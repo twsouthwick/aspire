@@ -19,7 +19,7 @@ internal static class CommandsConfigurationExtensions
             {
                 var executor = context.ServiceProvider.GetRequiredService<ApplicationExecutor>();
 
-                await executor.StartResourceAsync(context.ResourceName).ConfigureAwait(false);
+                await executor.StartResourceAsync(context.ResourceName, context.CancellationToken).ConfigureAwait(false);
             },
             "Play",
             isHighlighted: true);
@@ -32,7 +32,7 @@ internal static class CommandsConfigurationExtensions
             {
                 var executor = context.ServiceProvider.GetRequiredService<ApplicationExecutor>();
 
-                await executor.StopResourceAsync(context.ResourceName).ConfigureAwait(false);
+                await executor.StopResourceAsync(context.ResourceName, context.CancellationToken).ConfigureAwait(false);
             },
             "Stop",
             isHighlighted: true);
@@ -45,8 +45,8 @@ internal static class CommandsConfigurationExtensions
             {
                 var executor = context.ServiceProvider.GetRequiredService<ApplicationExecutor>();
 
-                await executor.StopResourceAsync(context.ResourceName).ConfigureAwait(false);
-                await executor.StartResourceAsync(context.ResourceName).ConfigureAwait(false);
+                await executor.StopResourceAsync(context.ResourceName, context.CancellationToken).ConfigureAwait(false);
+                await executor.StartResourceAsync(context.ResourceName, context.CancellationToken).ConfigureAwait(false);
             },
             "ArrowCounterclockwise",
             isHighlighted: false);

@@ -26,6 +26,7 @@ using Polly.Timeout;
 
 namespace Aspire.Hosting.Dcp;
 
+[DebuggerDisplay("ModelResource = {ModelResource}, DcpResource = {DcpResource}")]
 internal class AppResource
 {
     public IResource ModelResource { get; }
@@ -1910,15 +1911,38 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
                     .Replace("[::1]", hostName);
     }
 
-    internal async Task StopResourceAsync(string resourceName)
+    internal async Task StopResourceAsync(string resourceName, CancellationToken cancellationToken)
     {
-        _ = _applicationModel;
-        _ = resourceName;
-        await Task.Yield();
+        var matchingResource = _appResources.SingleOrDefault(r => string.Equals(r.ModelResource.Name, resourceName, StringComparisons.ResourceName));
+        if (matchingResource == null)
+        {
+            throw new InvalidOperationException($"Resource '{resourceName}' not found.");
+        }
+
+        if (matchingResource.DcpResource is Container c)
+        {
+            c.Spec.Stop = true;
+            await kubernetesService.PatchAsync(c, cancellationToken).ConfigureAwait(false);
+        }
+        else if (matchingResource.DcpResource is Executable e)
+        {
+            e.Spec.Stop = true;
+            await kubernetesService.PatchAsync(e, cancellationToken).ConfigureAwait(false);
+        }
+        else if (matchingResource.DcpResource is ExecutableReplicaSet rs)
+        {
+            rs.Spec.Stop = true;
+            await kubernetesService.PatchAsync(rs, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Unexpected resource type: {matchingResource.DcpResource.GetType().FullName}");
+        }
     }
 
-    internal async Task StartResourceAsync(string resourceName)
+    internal async Task StartResourceAsync(string resourceName, CancellationToken cancellationToken)
     {
+        _ = cancellationToken;
         _ = _applicationModel;
         _ = resourceName;
         await Task.Yield();
