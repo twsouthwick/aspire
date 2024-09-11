@@ -16,7 +16,9 @@ using Aspire.Hosting.Dcp.Model;
 using Aspire.Hosting.Eventing;
 using Aspire.Hosting.Lifecycle;
 using Aspire.Hosting.Utils;
+using Json.Patch;
 using k8s;
+using k8s.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -1911,9 +1913,28 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
                     .Replace("[::1]", hostName);
     }
 
+    /// <summary>
+    /// Create a patch update using the specified resource.
+    /// A copy is taken of the resource to avoid permanently changing it.
+    /// </summary>
+    internal static V1Patch CreatePatch<T>(T obj, Action<T> change) where T : CustomResource
+    {
+        // This method isn't very efficient.
+        // If mass or frequent patches are required then we may want to create patches manually.
+        var current = JsonSerializer.SerializeToNode(obj);
+
+        var copy = JsonSerializer.Deserialize<T>(current)!;
+        change(copy);
+
+        var changed = JsonSerializer.SerializeToNode(copy);
+
+        var jsonPatch = current.CreatePatch(changed);
+        return new V1Patch(jsonPatch, V1Patch.PatchType.MergePatch);
+    }
+
     internal async Task StopResourceAsync(string resourceName, CancellationToken cancellationToken)
     {
-        var matchingResource = _appResources.SingleOrDefault(r => string.Equals(r.ModelResource.Name, resourceName, StringComparisons.ResourceName));
+        var matchingResource = _appResources.SingleOrDefault(r => string.Equals(r.DcpResource.Metadata.Name, resourceName, StringComparisons.ResourceName));
         if (matchingResource == null)
         {
             throw new InvalidOperationException($"Resource '{resourceName}' not found.");
@@ -1921,18 +1942,18 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
 
         if (matchingResource.DcpResource is Container c)
         {
-            c.Spec.Stop = true;
-            await kubernetesService.PatchAsync(c, cancellationToken).ConfigureAwait(false);
+            var patch = CreatePatch(c, obj => obj.Spec.Stop = true);
+            await kubernetesService.PatchAsync(c, patch, cancellationToken).ConfigureAwait(false);
         }
         else if (matchingResource.DcpResource is Executable e)
         {
-            e.Spec.Stop = true;
-            await kubernetesService.PatchAsync(e, cancellationToken).ConfigureAwait(false);
+            var patch = CreatePatch(e, obj => obj.Spec.Stop = true);
+            await kubernetesService.PatchAsync(e, patch, cancellationToken).ConfigureAwait(false);
         }
         else if (matchingResource.DcpResource is ExecutableReplicaSet rs)
         {
-            rs.Spec.Stop = true;
-            await kubernetesService.PatchAsync(rs, cancellationToken).ConfigureAwait(false);
+            var patch = CreatePatch(rs, obj => obj.Spec.Stop = true);
+            await kubernetesService.PatchAsync(rs, patch, cancellationToken).ConfigureAwait(false);
         }
         else
         {

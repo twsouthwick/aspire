@@ -33,7 +33,7 @@ internal interface IKubernetesService
         where T: CustomResource;
     Task<T> CreateAsync<T>(T obj, CancellationToken cancellationToken = default)
         where T : CustomResource;
-    Task<T> PatchAsync<T>(T obj, CancellationToken cancellationToken = default)
+    Task<T> PatchAsync<T>(T obj, V1Patch patch, CancellationToken cancellationToken = default)
         where T : CustomResource;
     Task<List<T>> ListAsync<T>(string? namespaceParameter = null, CancellationToken cancellationToken = default)
         where T : CustomResource;
@@ -125,7 +125,7 @@ internal sealed class KubernetesService(ILogger<KubernetesService> logger, IOpti
            cancellationToken);
     }
 
-    public Task<T> PatchAsync<T>(T obj, CancellationToken cancellationToken = default)
+    public Task<T> PatchAsync<T>(T obj, V1Patch patch, CancellationToken cancellationToken = default)
         where T : CustomResource
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -139,14 +139,14 @@ internal sealed class KubernetesService(ILogger<KubernetesService> logger, IOpti
            {
                var response = string.IsNullOrEmpty(namespaceParameter)
                 ? await kubernetes.CustomObjects.PatchClusterCustomObjectWithHttpMessagesAsync(
-                    obj,
+                    patch,
                     GroupVersion.Group,
                     GroupVersion.Version,
                     resourceType,
                     obj.Metadata.Name,
                     cancellationToken: cancellationToken).ConfigureAwait(false)
                 : await kubernetes.CustomObjects.PatchNamespacedCustomObjectWithHttpMessagesAsync(
-                    obj,
+                    patch,
                     GroupVersion.Group,
                     GroupVersion.Version,
                     namespaceParameter,
