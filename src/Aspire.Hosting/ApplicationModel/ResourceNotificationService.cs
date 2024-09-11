@@ -196,9 +196,9 @@ public class ResourceNotificationService
         {
             var previousState = GetCurrentSnapshot(resource, notificationState);
 
-            previousState = UpdateCommands(resource, previousState);
-
             var newState = stateFactory(previousState);
+
+            newState = UpdateCommands(resource, newState);
 
             notificationState.LastSnapshot = newState;
 

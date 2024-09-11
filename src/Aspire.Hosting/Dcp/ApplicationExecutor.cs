@@ -1929,7 +1929,7 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
         var changed = JsonSerializer.SerializeToNode(copy);
 
         var jsonPatch = current.CreatePatch(changed);
-        return new V1Patch(jsonPatch, V1Patch.PatchType.MergePatch);
+        return new V1Patch(jsonPatch, V1Patch.PatchType.JsonPatch);
     }
 
     internal async Task StopResourceAsync(string resourceName, CancellationToken cancellationToken)

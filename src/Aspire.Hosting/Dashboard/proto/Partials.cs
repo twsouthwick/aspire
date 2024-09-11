@@ -10,7 +10,7 @@ partial class Resource
 {
     public static Resource FromSnapshot(ResourceSnapshot snapshot)
     {
-        Resource resource = new()
+        var resource = new Resource
         {
             Name = snapshot.Name,
             ResourceType = snapshot.ResourceType,
