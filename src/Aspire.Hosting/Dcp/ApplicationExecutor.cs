@@ -18,6 +18,7 @@ using Aspire.Hosting.Lifecycle;
 using Aspire.Hosting.Utils;
 using Json.Patch;
 using k8s;
+using k8s.Autorest;
 using k8s.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -1880,9 +1881,9 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
         }
     }
 
-    private async Task DeleteResourcesAsync<RT>(string resourceType, CancellationToken cancellationToken) where RT : CustomResource
+    private async Task DeleteResourcesAsync<TResource>(string resourceType, CancellationToken cancellationToken) where TResource : CustomResource
     {
-        var resourcesToDelete = _appResources.Select(r => r.DcpResource).OfType<RT>();
+        var resourcesToDelete = _appResources.Select(r => r.DcpResource).OfType<TResource>();
         if (!resourcesToDelete.Any())
         {
             return;
@@ -1892,7 +1893,7 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
         {
             try
             {
-                await kubernetesService.DeleteAsync<RT>(res.Metadata.Name, res.Metadata.NamespaceProperty, cancellationToken).ConfigureAwait(false);
+                await kubernetesService.DeleteAsync<TResource>(res.Metadata.Name, res.Metadata.NamespaceProperty, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -1940,32 +1941,59 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
             throw new InvalidOperationException($"Resource '{resourceName}' not found.");
         }
 
-        if (matchingResource.DcpResource is Container c)
+        V1Patch patch;
+        switch (matchingResource.DcpResource)
         {
-            var patch = CreatePatch(c, obj => obj.Spec.Stop = true);
-            await kubernetesService.PatchAsync(c, patch, cancellationToken).ConfigureAwait(false);
-        }
-        else if (matchingResource.DcpResource is Executable e)
-        {
-            var patch = CreatePatch(e, obj => obj.Spec.Stop = true);
-            await kubernetesService.PatchAsync(e, patch, cancellationToken).ConfigureAwait(false);
-        }
-        else if (matchingResource.DcpResource is ExecutableReplicaSet rs)
-        {
-            var patch = CreatePatch(rs, obj => obj.Spec.Stop = true);
-            await kubernetesService.PatchAsync(rs, patch, cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            throw new InvalidOperationException($"Unexpected resource type: {matchingResource.DcpResource.GetType().FullName}");
+            case Container c:
+                patch = CreatePatch(c, obj => obj.Spec.Stop = true);
+                await kubernetesService.PatchAsync(c, patch, cancellationToken).ConfigureAwait(false);
+                break;
+            case Executable e:
+                patch = CreatePatch(e, obj => obj.Spec.Stop = true);
+                await kubernetesService.PatchAsync(e, patch, cancellationToken).ConfigureAwait(false);
+                break;
+            case ExecutableReplicaSet rs:
+                patch = CreatePatch(rs, obj => obj.Spec.Stop = true);
+                await kubernetesService.PatchAsync(rs, patch, cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new InvalidOperationException($"Unexpected resource type: {matchingResource.DcpResource.GetType().FullName}");
         }
     }
 
     internal async Task StartResourceAsync(string resourceName, CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
-        _ = _applicationModel;
-        _ = resourceName;
-        await Task.Yield();
+        var matchingResource = _appResources.SingleOrDefault(r => string.Equals(r.DcpResource.Metadata.Name, resourceName, StringComparisons.ResourceName));
+        if (matchingResource == null)
+        {
+            throw new InvalidOperationException($"Resource '{resourceName}' not found.");
+        }
+
+        switch (matchingResource.DcpResource)
+        {
+            case Container c:
+                try
+                {
+                    await kubernetesService.DeleteAsync<Container>(c.Metadata.Name, cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
+                catch (HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // No-op if the resource wasn't found.
+                    // This could happen in a race condition, e.g. double clicking start button.
+                }
+
+                // Hacky delay to ensure the resource is fully deleted before recreating it with the same name.
+                // Should change this to wait for deleted state from watch method.
+                await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
+
+                await kubernetesService.CreateAsync(c, cancellationToken).ConfigureAwait(false);
+                break;
+            case Executable e:
+                break;
+            case ExecutableReplicaSet rs:
+                break;
+            default:
+                throw new InvalidOperationException($"Unexpected resource type: {matchingResource.DcpResource.GetType().FullName}");
+        }
     }
 }

@@ -51,7 +51,7 @@ internal sealed class ExecutableSpec
     [JsonPropertyName("healthProbes")]
     public List<HealthProbe>? HealthProbes { get; set; }
 
-    // Should this container be stopped?
+    // Should this resource be stopped?
     [JsonPropertyName("stop")]
     public bool? Stop { get; set; }
 }
