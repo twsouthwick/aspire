@@ -1055,84 +1055,88 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
 
             var replicas = project.GetReplicaCount();
 
-            var ers = ExecutableReplicaSet.Create(GetObjectNameForResource(project), replicas, "dotnet");
-            var exeSpec = ers.Spec.Template.Spec;
-            exeSpec.WorkingDirectory = Path.GetDirectoryName(projectMetadata.ProjectPath);
-
-            IAnnotationHolder annotationHolder = ers.Spec.Template;
-            annotationHolder.Annotate(CustomResource.OtelServiceNameAnnotation, (replicas > 1) ? ers.Metadata.Name : project.Name);
-            // The OTEL service instance ID annotation will be generated and applied automatically by DCP.
-            annotationHolder.Annotate(CustomResource.ResourceNameAnnotation, project.Name);
-
-            SetInitialResourceState(project, annotationHolder);
-
-            var projectLaunchConfiguration = new ProjectLaunchConfiguration();
-            projectLaunchConfiguration.ProjectPath = projectMetadata.ProjectPath;
-
-            if (!string.IsNullOrEmpty(configuration[DebugSessionPortVar]))
+            for (var i = 0; i < replicas; i++)
             {
-                exeSpec.ExecutionType = ExecutionType.IDE;
+                var nameSuffix = GetRandomNameSuffix();
+                var exeName = GetObjectNameForResource(project, nameSuffix);
 
-                projectLaunchConfiguration.DisableLaunchProfile = project.TryGetLastAnnotation<ExcludeLaunchProfileAnnotation>(out _);
-                if (!projectLaunchConfiguration.DisableLaunchProfile && project.TryGetLastAnnotation<LaunchProfileAnnotation>(out var lpa))
+                var exeSpec = Executable.Create(exeName, "dotnet");
+                exeSpec.Spec.WorkingDirectory = Path.GetDirectoryName(projectMetadata.ProjectPath);
+
+                exeSpec.Annotate(CustomResource.OtelServiceNameAnnotation, project.Name);
+                exeSpec.Annotate(CustomResource.OtelServiceInstanceIdAnnotation, nameSuffix);
+                exeSpec.Annotate(CustomResource.ResourceNameAnnotation, project.Name);
+
+                SetInitialResourceState(project, exeSpec);
+
+                var projectLaunchConfiguration = new ProjectLaunchConfiguration();
+                projectLaunchConfiguration.ProjectPath = projectMetadata.ProjectPath;
+
+                if (!string.IsNullOrEmpty(configuration[DebugSessionPortVar]))
                 {
-                    projectLaunchConfiguration.LaunchProfile = lpa.LaunchProfileName;
+                    exeSpec.Spec.ExecutionType = ExecutionType.IDE;
+
+                    projectLaunchConfiguration.DisableLaunchProfile = project.TryGetLastAnnotation<ExcludeLaunchProfileAnnotation>(out _);
+                    if (!projectLaunchConfiguration.DisableLaunchProfile && project.TryGetLastAnnotation<LaunchProfileAnnotation>(out var lpa))
+                    {
+                        projectLaunchConfiguration.LaunchProfile = lpa.LaunchProfileName;
+                    }
                 }
-            }
-            else
-            {
-                exeSpec.ExecutionType = ExecutionType.Process;
-                if (configuration.GetBool("DOTNET_WATCH") is not true)
+                else
                 {
-                    exeSpec.Args = [
-                        "run",
+                    exeSpec.Spec.ExecutionType = ExecutionType.Process;
+                    if (configuration.GetBool("DOTNET_WATCH") is not true)
+                    {
+                        exeSpec.Spec.Args = [
+                            "run",
                         "--no-build",
                         "--project",
                         projectMetadata.ProjectPath,
                     ];
-                }
-                else
-                {
-                    exeSpec.Args = [
-                        "watch",
+                    }
+                    else
+                    {
+                        exeSpec.Spec.Args = [
+                            "watch",
                         "--non-interactive",
                         "--no-hot-reload",
                         "--project",
                         projectMetadata.ProjectPath
-                    ];
-                }
+                        ];
+                    }
 
-                if (!string.IsNullOrEmpty(_distributedApplicationOptions.Configuration))
-                {
-                    exeSpec.Args.AddRange(new [] {"-c", _distributedApplicationOptions.Configuration});
-                }
-
-                // We pretty much always want to suppress the normal launch profile handling
-                // because the settings from the profile will override the ambient environment settings, which is not what we want
-                // (the ambient environment settings for service processes come from the application model
-                // and should be HIGHER priority than the launch profile settings).
-                // This means we need to apply the launch profile settings manually--the invocation parameters here,
-                // and the environment variables/application URLs inside CreateExecutableAsync().
-                exeSpec.Args.Add("--no-launch-profile");
-
-                var launchProfile = project.GetEffectiveLaunchProfile()?.LaunchProfile;
-                if (launchProfile is not null && !string.IsNullOrWhiteSpace(launchProfile.CommandLineArgs))
-                {
-                    var cmdArgs = CommandLineArgsParser.Parse(launchProfile.CommandLineArgs);
-                    if (cmdArgs.Count > 0)
+                    if (!string.IsNullOrEmpty(_distributedApplicationOptions.Configuration))
                     {
-                        exeSpec.Args.Add("--");
-                        exeSpec.Args.AddRange(cmdArgs);
+                        exeSpec.Spec.Args.AddRange(new[] { "-c", _distributedApplicationOptions.Configuration });
+                    }
+
+                    // We pretty much always want to suppress the normal launch profile handling
+                    // because the settings from the profile will override the ambient environment settings, which is not what we want
+                    // (the ambient environment settings for service processes come from the application model
+                    // and should be HIGHER priority than the launch profile settings).
+                    // This means we need to apply the launch profile settings manually--the invocation parameters here,
+                    // and the environment variables/application URLs inside CreateExecutableAsync().
+                    exeSpec.Spec.Args.Add("--no-launch-profile");
+
+                    var launchProfile = project.GetEffectiveLaunchProfile()?.LaunchProfile;
+                    if (launchProfile is not null && !string.IsNullOrWhiteSpace(launchProfile.CommandLineArgs))
+                    {
+                        var cmdArgs = CommandLineArgsParser.Parse(launchProfile.CommandLineArgs);
+                        if (cmdArgs.Count > 0)
+                        {
+                            exeSpec.Spec.Args.Add("--");
+                            exeSpec.Spec.Args.AddRange(cmdArgs);
+                        }
                     }
                 }
+
+                // We want this annotation even if we are not using IDE execution; see ToSnapshot() for details.
+                exeSpec.AnnotateAsObjectList(Executable.LaunchConfigurationsAnnotation, projectLaunchConfiguration);
+
+                var exeAppResource = new AppResource(project, exeSpec);
+                AddServicesProducedInfo(project, exeSpec, exeAppResource);
+                _appResources.Add(exeAppResource);
             }
-
-            // We want this annotation even if we are not using IDE execution; see ToSnapshot() for details.
-            annotationHolder.AnnotateAsObjectList(Executable.LaunchConfigurationsAnnotation, projectLaunchConfiguration);
-
-            var exeAppResource = new AppResource(project, ers);
-            AddServicesProducedInfo(project, annotationHolder, exeAppResource);
-            _appResources.Add(exeAppResource);
         }
     }
 

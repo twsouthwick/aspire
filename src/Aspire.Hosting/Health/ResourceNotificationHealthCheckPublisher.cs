@@ -17,10 +17,12 @@ internal class ResourceNotificationHealthCheckPublisher(DistributedApplicationMo
                 // Make sure every annotation is represented as health in the report, and if an entry is missing that means it is unhealthy.
                 var status = annotations.All(a => report.Entries.TryGetValue(a.Key, out var entry) && entry.Status == HealthStatus.Healthy) ? HealthStatus.Healthy : HealthStatus.Unhealthy;
 
-                await resourceNotificationService.PublishUpdateAsync(resource, s => s with
-                {
-                    HealthStatus = status
-                }).ConfigureAwait(false);
+                _ = resourceNotificationService;
+                await Task.Yield();
+                //await resourceNotificationService.PublishUpdateAsync(resource, s => s with
+                //{
+                //    HealthStatus = status
+                //}).ConfigureAwait(false);
             }
         }
     }
