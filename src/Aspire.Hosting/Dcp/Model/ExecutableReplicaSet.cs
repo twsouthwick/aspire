@@ -53,13 +53,13 @@ internal sealed class ExecutableReplicaSetSpec
     [JsonPropertyName("replicas")]
     public int Replicas { get; set; } = 1;
 
+    // Should the replica be soft deleted on scale down instead of deleted?
+    [JsonPropertyName("stopOnScaleDown")]
+    public bool? StopOnScaleDown { get; set; }
+
     // Template describing the configuration of child Executable objects created by the replica set
     [JsonPropertyName("template")]
     public ExecutableTemplate Template { get; set; } = new ExecutableTemplate();
-
-    // Should this resource be stopped?
-    [JsonPropertyName("stop")]
-    public bool? Stop { get; set; }
 }
 
 internal sealed class ExecutableReplicaSetStatus : V1Status
@@ -104,7 +104,8 @@ internal sealed class ExecutableReplicaSet : CustomResource<ExecutableReplicaSet
 
         var ers = new ExecutableReplicaSet(new ExecutableReplicaSetSpec
         {
-            Replicas = replicas
+            Replicas = replicas,
+            StopOnScaleDown = true
         });
         ers.Kind = Dcp.ExecutableReplicaSetKind;
         ers.ApiVersion = Dcp.GroupVersion.ToString();

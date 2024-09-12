@@ -1053,7 +1053,7 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
                 throw new InvalidOperationException("A project resource is missing required metadata"); // Should never happen.
             }
 
-            int replicas = project.GetReplicaCount();
+            var replicas = project.GetReplicaCount();
 
             var ers = ExecutableReplicaSet.Create(GetObjectNameForResource(project), replicas, "dotnet");
             var exeSpec = ers.Spec.Template.Spec;
@@ -1935,11 +1935,7 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
 
     internal async Task StopResourceAsync(string resourceName, CancellationToken cancellationToken)
     {
-        var matchingResource = _appResources.SingleOrDefault(r => string.Equals(r.DcpResource.Metadata.Name, resourceName, StringComparisons.ResourceName));
-        if (matchingResource == null)
-        {
-            throw new InvalidOperationException($"Resource '{resourceName}' not found.");
-        }
+        var matchingResource = GetMatchingResource(resourceName);
 
         V1Patch patch;
         switch (matchingResource.DcpResource)
@@ -1953,7 +1949,7 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
                 await kubernetesService.PatchAsync(e, patch, cancellationToken).ConfigureAwait(false);
                 break;
             case ExecutableReplicaSet rs:
-                patch = CreatePatch(rs, obj => obj.Spec.Stop = true);
+                patch = CreatePatch(rs, obj => obj.Spec.Replicas = 0);
                 await kubernetesService.PatchAsync(rs, patch, cancellationToken).ConfigureAwait(false);
                 break;
             default:
@@ -1961,39 +1957,72 @@ internal sealed class ApplicationExecutor(ILogger<ApplicationExecutor> logger,
         }
     }
 
-    internal async Task StartResourceAsync(string resourceName, CancellationToken cancellationToken)
+    private AppResource GetMatchingResource(string resourceName)
     {
-        var matchingResource = _appResources.SingleOrDefault(r => string.Equals(r.DcpResource.Metadata.Name, resourceName, StringComparisons.ResourceName));
+        var matchingResource = _appResources
+            .Where(r => r.DcpResource is not Service)
+            .SingleOrDefault(r => string.Equals(r.DcpResource.Metadata.Name, resourceName, StringComparisons.ResourceName));
         if (matchingResource == null)
         {
             throw new InvalidOperationException($"Resource '{resourceName}' not found.");
         }
 
+        return matchingResource;
+    }
+
+    internal async Task StartResourceAsync(string resourceName, CancellationToken cancellationToken)
+    {
+        var matchingResource = GetMatchingResource(resourceName);
+
         switch (matchingResource.DcpResource)
         {
             case Container c:
-                try
-                {
-                    await kubernetesService.DeleteAsync<Container>(c.Metadata.Name, cancellationToken: cancellationToken).ConfigureAwait(false);
-                }
-                catch (HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    // No-op if the resource wasn't found.
-                    // This could happen in a race condition, e.g. double clicking start button.
-                }
-
-                // Hacky delay to ensure the resource is fully deleted before recreating it with the same name.
-                // Should change this to wait for deleted state from watch method.
-                await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
-
-                await kubernetesService.CreateAsync(c, cancellationToken).ConfigureAwait(false);
+                await StartExecutableOrContainerAsync(c).ConfigureAwait(false);
                 break;
             case Executable e:
+                await StartExecutableOrContainerAsync(e).ConfigureAwait(false);
                 break;
             case ExecutableReplicaSet rs:
+                var replicas = matchingResource.ModelResource.GetReplicaCount();
+                var patch = CreatePatch(rs, obj => obj.Spec.Replicas = replicas);
+
+                await kubernetesService.PatchAsync(rs, patch, cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 throw new InvalidOperationException($"Unexpected resource type: {matchingResource.DcpResource.GetType().FullName}");
+        }
+
+        async Task StartExecutableOrContainerAsync<T>(T resource) where T : CustomResource
+        {
+            try
+            {
+                // Note that DeleteAsync returns before the resource is completely deleted.
+                await kubernetesService.DeleteAsync<T>(resource.Metadata.Name, cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // No-op if the resource wasn't found.
+                // This could happen in a race condition, e.g. double clicking start button.
+            }
+
+            // Ensure resource is deleted.
+            // The resource must be properly deleted before it is started again because they share the same name. Poll to check.
+            for (var i = 0; i < 5; i++)
+            {
+                // Pause to give DCP a chance to finish deleting the resource.
+                await Task.Delay(100 * (i + 1), cancellationToken).ConfigureAwait(false);
+
+                try
+                {
+                    await kubernetesService.GetAsync<T>(resource.Metadata.Name, cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
+                catch (HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    break;
+                }
+            }
+
+            await kubernetesService.CreateAsync(resource, cancellationToken).ConfigureAwait(false);
         }
     }
 }

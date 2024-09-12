@@ -14,7 +14,21 @@ internal static class CommandsConfigurationExtensions
         builder.WithCommand(
             "start",
             "Start",
-            context => IsStopped(context.ResourceSnapshot.State?.Text) ? ResourceCommandState.Enabled : ResourceCommandState.Hidden,
+            context =>
+            {
+                if (IsStarting(context.ResourceSnapshot.State?.Text))
+                {
+                    return ResourceCommandState.Disabled;
+                }
+                else if (IsStopped(context.ResourceSnapshot.State?.Text))
+                {
+                    return ResourceCommandState.Enabled;
+                }
+                else
+                {
+                    return ResourceCommandState.Hidden;
+                }
+            },
             async context =>
             {
                 var executor = context.ServiceProvider.GetRequiredService<ApplicationExecutor>();
@@ -27,7 +41,21 @@ internal static class CommandsConfigurationExtensions
         builder.WithCommand(
             "stop",
             "Stop",
-            context => !IsStopped(context.ResourceSnapshot.State?.Text) ? ResourceCommandState.Enabled : ResourceCommandState.Hidden,
+            context =>
+            {
+                if (IsStopping(context.ResourceSnapshot.State?.Text))
+                {
+                    return ResourceCommandState.Disabled;
+                }
+                else if (!IsStopped(context.ResourceSnapshot.State?.Text) && !IsStarting(context.ResourceSnapshot.State?.Text))
+                {
+                    return ResourceCommandState.Enabled;
+                }
+                else
+                {
+                    return ResourceCommandState.Hidden;
+                }
+            },
             async context =>
             {
                 var executor = context.ServiceProvider.GetRequiredService<ApplicationExecutor>();
@@ -40,7 +68,17 @@ internal static class CommandsConfigurationExtensions
         builder.WithCommand(
             "restart",
             "Restart",
-            context => !IsStopped(context.ResourceSnapshot.State?.Text) ? ResourceCommandState.Enabled : ResourceCommandState.Hidden,
+            context =>
+            {
+                if (IsStarting(context.ResourceSnapshot.State?.Text) || IsStopping(context.ResourceSnapshot.State?.Text) || IsStopped(context.ResourceSnapshot.State?.Text))
+                {
+                    return ResourceCommandState.Disabled;
+                }
+                else
+                {
+                    return ResourceCommandState.Enabled;
+                }
+            },
             async context =>
             {
                 var executor = context.ServiceProvider.GetRequiredService<ApplicationExecutor>();
@@ -54,5 +92,7 @@ internal static class CommandsConfigurationExtensions
         return builder;
 
         static bool IsStopped(string? state) => state is "Exited" or "Finished" or "FailedToStart";
+        static bool IsStopping(string? state) => state is "Stopping";
+        static bool IsStarting(string? state) => state is "Starting";
     }
 }

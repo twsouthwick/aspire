@@ -309,7 +309,11 @@ public partial class Resources : ComponentBase, IAsyncDisposable
             }
         }
 
-        var response = await DashboardClient.ExecuteResourceCommandAsync(resource.Name, resource.ResourceType, command, CancellationToken.None);
+        var resourceName = resource.IsExecutable(allowSubtypes: true)
+            ? resource.DisplayName
+            : resource.Name;
+
+        var response = await DashboardClient.ExecuteResourceCommandAsync(resourceName, resource.ResourceType, command, CancellationToken.None);
 
         if (response.Kind == ResourceCommandResponseKind.Succeeded)
         {
