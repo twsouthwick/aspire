@@ -1,18 +1,21 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Dcp;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Aspire.Hosting.Dashboard;
+namespace Aspire.Hosting.ApplicationModel;
 
 internal static class CommandsConfigurationExtensions
 {
+    internal const string StartType = "start";
+    internal const string StopType = "stop";
+    internal const string RestartType = "restart";
+
     internal static IResourceBuilder<T> WithLifeCycleCommands<T>(this IResourceBuilder<T> builder) where T : IResource
     {
         builder.WithCommand(
-            "start",
+            StartType,
             "Start",
             context =>
             {
@@ -39,7 +42,7 @@ internal static class CommandsConfigurationExtensions
             isHighlighted: true);
 
         builder.WithCommand(
-            "stop",
+            StopType,
             "Stop",
             context =>
             {
@@ -66,7 +69,7 @@ internal static class CommandsConfigurationExtensions
             isHighlighted: true);
 
         builder.WithCommand(
-            "restart",
+            RestartType,
             "Restart",
             context =>
             {

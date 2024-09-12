@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Aspire.Hosting.ApplicationModel;
-using Aspire.Hosting.Dashboard;
 using Aspire.Hosting.Utils;
 
 namespace Aspire.Hosting;
