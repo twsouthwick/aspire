@@ -148,11 +148,6 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
 
     protected override async Task OnParametersSetAsync()
     {
-        if (DimensionManager.IsResizing && _subscriptionResourceName != null)
-        {
-            return;
-        }
-
         Logger.LogDebug("Initializing console logs view model.");
         if (await this.InitializeViewModelAsync())
         {
