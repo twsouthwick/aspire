@@ -284,13 +284,7 @@ public partial class Traces : IPageWithSessionAndUrlState<TracesPageViewModel, T
 
     public class TracesPageViewModel
     {
-        private SelectViewModel<ResourceTypeDetails> _selectedApplication = default!;
-
-        public required SelectViewModel<ResourceTypeDetails> SelectedApplication
-        {
-            get => _selectedApplication;
-            set => _selectedApplication = value;
-        }
+        public required SelectViewModel<ResourceTypeDetails> SelectedApplication { get; set; }
     }
 
     public class TracesPageState
