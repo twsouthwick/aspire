@@ -45,6 +45,7 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
     private readonly ConcurrentDictionary<string, ResourceViewModel> _resourceByName = new(StringComparers.ResourceName);
     private ImmutableList<SelectViewModel<ResourceTypeDetails>>? _resources;
     private Task? _resourceSubscriptionTask;
+    private string? _subscriptionResourceName;
 
     // UI
     private ResourceSelect? _resourceSelectComponent;
@@ -149,23 +150,31 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
 
     protected override async Task OnParametersSetAsync()
     {
-        if (DimensionManager.IsResizing && PageViewModel.InitialisedSuccessfully is true)
+        if (DimensionManager.IsResizing && _subscriptionResourceName != null)
         {
             return;
         }
 
         Logger.LogDebug("Initializing console logs view model.");
-        await this.InitializeViewModelAsync();
-
-        await ClearLogsAsync();
-
-        if (PageViewModel.SelectedResource is not null)
+        if (await this.InitializeViewModelAsync())
         {
-            await LoadLogsAsync();
+            return;
         }
-        else
+
+        if (PageViewModel.SelectedResource?.Name != _subscriptionResourceName)
         {
-            await StopWatchingLogsAsync();
+            _subscriptionResourceName = PageViewModel.SelectedResource?.Name;
+
+            await ClearLogsAsync();
+
+            if (PageViewModel.SelectedResource is not null)
+            {
+                await LoadLogsAsync();
+            }
+            else
+            {
+                await StopWatchingLogsAsync();
+            }
         }
     }
 
@@ -279,19 +288,35 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
             {
                 var task = _logViewer.SetLogSourceAsync(PageViewModel.SelectedResource.Name, subscription);
 
-                PageViewModel.InitialisedSuccessfully = true;
+                _subscriptionResourceName = PageViewModel.SelectedResource.Name;
                 PageViewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsWatchingLogs)];
 
-                // Indicate when logs finish (other than by cancellation).
-                _ = task.ContinueWith(
-                    _ => PageViewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsFinishedWatchingLogs)],
-                    CancellationToken.None,
-                    TaskContinuationOptions.NotOnCanceled,
-                    TaskScheduler.Current);
+                _ = Task.Run(async () =>
+                {
+                    var isCanceled = false;
+                    try
+                    {
+                        await task;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        isCanceled = true;
+                    }
+                    finally
+                    {
+                        _subscriptionResourceName = null;
+
+                        // Indicate when logs finish (other than by cancellation).
+                        if (!isCanceled)
+                        {
+                            PageViewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsFinishedWatchingLogs)];
+                        }
+                    }
+                });
             }
             else
             {
-                PageViewModel.InitialisedSuccessfully = false;
+                _subscriptionResourceName = null;
                 PageViewModel.Status = Loc[PageViewModel.SelectedResource.IsContainer()
                     ? nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsFailedToInitialize)
                     : nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsLogsNotYetAvailable)];
@@ -339,10 +364,10 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
 
         // Workaround for issue in fluent-select web component where the display value of the
         // selected item doesn't update automatically when the item changes
-        if (_resourceSelectComponent is not null)
-        {
-            await _resourceSelectComponent.UpdateDisplayValueAsync();
-        }
+        //if (_resourceSelectComponent is not null)
+        //{
+        //    await _resourceSelectComponent.UpdateDisplayValueAsync();
+        //}
     }
 
     public async ValueTask DisposeAsync()
@@ -364,10 +389,15 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
 
     public class ConsoleLogsViewModel
     {
+        private SelectViewModel<ResourceTypeDetails> _selectedOption = default!;
+
         public required string Status { get; set; }
-        public required SelectViewModel<ResourceTypeDetails> SelectedOption { get; set; }
+        public required SelectViewModel<ResourceTypeDetails> SelectedOption
+        {
+            get => _selectedOption;
+            set => _selectedOption = value;
+        }
         public required ResourceViewModel? SelectedResource { get; set; }
-        public bool? InitialisedSuccessfully { get; set; }
     }
 
     public class ConsoleLogsPageState
@@ -383,7 +413,7 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
 
             viewModel.SelectedOption = selectedOption;
             viewModel.SelectedResource = selectedOption.Id?.InstanceId is null ? null : _resourceByName[selectedOption.Id.InstanceId];
-            viewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsLogsNotYetAvailable)];
+            viewModel.Status ??= Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsLogsNotYetAvailable)];
         }
         else
         {

@@ -79,7 +79,7 @@ public static class PageExtensions
         }
     }
 
-    public static async Task InitializeViewModelAsync<TViewModel, TSerializableViewModel>(this IPageWithSessionAndUrlState<TViewModel, TSerializableViewModel> page) where TSerializableViewModel : class
+    public static async Task<bool> InitializeViewModelAsync<TViewModel, TSerializableViewModel>(this IPageWithSessionAndUrlState<TViewModel, TSerializableViewModel> page) where TSerializableViewModel : class
     {
         if (string.Equals(page.BasePath, page.NavigationManager.ToBaseRelativePath(page.NavigationManager.Uri)))
         {
@@ -92,12 +92,13 @@ public static class PageExtensions
                 if (newUrl != "/" + page.BasePath)
                 {
                     page.NavigationManager.NavigateTo(newUrl);
-                    return;
+                    return true;
                 }
             }
         }
 
         ArgumentNullException.ThrowIfNull(page.PageViewModel, nameof(page.PageViewModel));
         page.UpdateViewModelFromQuery(page.PageViewModel);
+        return false;
     }
 }
