@@ -370,14 +370,8 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
 
     public class ConsoleLogsViewModel
     {
-        private SelectViewModel<ResourceTypeDetails> _selectedOption = default!;
-
         public required string Status { get; set; }
-        public required SelectViewModel<ResourceTypeDetails> SelectedOption
-        {
-            get => _selectedOption;
-            set => _selectedOption = value;
-        }
+        public required SelectViewModel<ResourceTypeDetails> SelectedOption { get; set; }
         public required ResourceViewModel? SelectedResource { get; set; }
     }
 

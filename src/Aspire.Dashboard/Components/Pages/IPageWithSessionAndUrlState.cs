@@ -79,6 +79,13 @@ public static class PageExtensions
         }
     }
 
+    /// <summary>
+    /// If first visiting the page then initialize page state from storage and redirect using page state.
+    /// </summary>
+    /// <returns>
+    /// A value indicating whether there was a page redirect. Further page initialization should check the return value
+    /// and wait until parameters are updated if there was a page redirect.
+    /// </returns>
     public static async Task<bool> InitializeViewModelAsync<TViewModel, TSerializableViewModel>(this IPageWithSessionAndUrlState<TViewModel, TSerializableViewModel> page) where TSerializableViewModel : class
     {
         if (string.Equals(page.BasePath, page.NavigationManager.ToBaseRelativePath(page.NavigationManager.Uri)))
