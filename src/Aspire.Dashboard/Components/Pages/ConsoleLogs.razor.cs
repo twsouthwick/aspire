@@ -293,24 +293,14 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
 
                 _ = Task.Run(async () =>
                 {
-                    var isCanceled = false;
                     try
                     {
                         await task;
                     }
-                    catch (OperationCanceledException)
-                    {
-                        isCanceled = true;
-                    }
                     finally
                     {
                         _subscriptionResourceName = null;
-
-                        // Indicate when logs finish (other than by cancellation).
-                        if (!isCanceled)
-                        {
-                            PageViewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsFinishedWatchingLogs)];
-                        }
+                        PageViewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsFinishedWatchingLogs)];
                     }
                 });
             }
