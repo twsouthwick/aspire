@@ -4,7 +4,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using Aspire.Dashboard.Components.Controls;
 using Aspire.Dashboard.Components.Layout;
 using Aspire.Dashboard.Extensions;
 using Aspire.Dashboard.Model;
@@ -48,7 +47,6 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
     private string? _subscriptionResourceName;
 
     // UI
-    private ResourceSelect? _resourceSelectComponent;
     private SelectViewModel<ResourceTypeDetails> _noSelection = null!;
     private LogViewer _logViewer = null!;
     private AspirePageContentLayout? _contentLayout;
@@ -351,13 +349,6 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
         }
 
         await InvokeAsync(StateHasChanged);
-
-        // Workaround for issue in fluent-select web component where the display value of the
-        // selected item doesn't update automatically when the item changes
-        //if (_resourceSelectComponent is not null)
-        //{
-        //    await _resourceSelectComponent.UpdateDisplayValueAsync();
-        //}
     }
 
     public async ValueTask DisposeAsync()
