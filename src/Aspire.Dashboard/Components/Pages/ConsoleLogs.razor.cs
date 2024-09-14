@@ -271,17 +271,19 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
         }
         else
         {
-            Logger.LogDebug("Subscribing to console logs for resource {ResourceName}.", PageViewModel.SelectedResource.Name);
+            var resourceSubscriptionName = PageViewModel.SelectedResource.Name;
+
+            Logger.LogDebug("Subscribing to console logs for resource {ResourceName}.", resourceSubscriptionName);
 
             var cancellationToken = await _logSubscriptionCancellationSeries.NextAsync();
 
-            var subscription = DashboardClient.SubscribeConsoleLogs(PageViewModel.SelectedResource.Name, cancellationToken);
+            var subscription = DashboardClient.SubscribeConsoleLogs(resourceSubscriptionName, cancellationToken);
 
             if (subscription is not null)
             {
-                var task = _logViewer.SetLogSourceAsync(PageViewModel.SelectedResource.Name, subscription);
+                var task = _logViewer.SetLogSourceAsync(resourceSubscriptionName, subscription);
 
-                _subscriptionResourceName = PageViewModel.SelectedResource.Name;
+                _subscriptionResourceName = resourceSubscriptionName;
                 PageViewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsWatchingLogs)];
 
                 _ = Task.Run(async () =>
@@ -292,6 +294,8 @@ public sealed partial class ConsoleLogs : ComponentBase, IAsyncDisposable, IPage
                     }
                     finally
                     {
+                        Logger.LogDebug("Finished watching logs for resource {ResourceName}.", resourceSubscriptionName);
+
                         _subscriptionResourceName = null;
                         PageViewModel.Status = Loc[nameof(Dashboard.Resources.ConsoleLogs.ConsoleLogsFinishedWatchingLogs)];
                     }

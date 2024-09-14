@@ -12,15 +12,24 @@ using Bunit;
 using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Aspire.Dashboard.Components.Tests.Pages;
 
 [UseCulture("en-US")]
 public partial class ConsoleLogsTests : TestContext
 {
+    private readonly ITestOutputHelper _testOutputHelper;
+
+    public ConsoleLogsTests(ITestOutputHelper testOutputHelper)
+    {
+        _testOutputHelper = testOutputHelper;
+    }
+
     [Fact]
     public void ResourceName_MultiRender_SubscribeConsoleLogsOnce()
     {
@@ -51,6 +60,7 @@ public partial class ConsoleLogsTests : TestContext
         });
 
         var instance = cut.Instance;
+        var logger = Services.GetRequiredService<ILogger<ConsoleLogsTests>>();
 
         var testResource = CreateResourceViewModel("test-resource", KnownResourceState.Running);
         resourceChannel.Writer.TryWrite([
@@ -58,17 +68,16 @@ public partial class ConsoleLogsTests : TestContext
         ]);
 
         // Assert
+        logger.LogInformation("Waiting for selected resource.");
         cut.WaitForState(() => instance.PageViewModel.SelectedResource == testResource);
 
-        viewport = new ViewportInformation(IsDesktop: false, IsUltraLowHeight: false, IsUltraLowWidth: false);
-        dimensionManager.InvokeOnViewportInformationChanged(viewport);
-
-        // Re-invoke
+        // Ensure component is rendered again.
         cut.SetParametersAndRender(builder => { });
 
         consoleLogsChannel.Writer.TryWrite([new ResourceLogLine(1, "Test content", IsErrorMessage: false)]);
         consoleLogsChannel.Writer.Complete();
 
+        logger.LogInformation("Waiting for finish message.");
         var loc = Services.GetRequiredService<IStringLocalizer<Resources.ConsoleLogs>>();
         cut.WaitForState(() => instance.PageViewModel.Status == loc[nameof(Resources.ConsoleLogs.ConsoleLogsFinishedWatchingLogs)]);
 
@@ -96,7 +105,10 @@ public partial class ConsoleLogsTests : TestContext
         JSInterop.SetupVoid("initializeContinuousScroll");
         JSInterop.SetupVoid("resetContinuousScrollPosition");
 
+        var loggerFactory = IntegrationTestHelpers.CreateLoggerFactory(_testOutputHelper);
+
         Services.AddLocalization();
+        Services.AddSingleton<ILoggerFactory>(loggerFactory);
         Services.AddSingleton<BrowserTimeProvider, TestTimeProvider>();
         Services.AddSingleton<IMessageService, MessageService>();
         Services.AddSingleton<IOptions<DashboardOptions>>(Options.Create(new DashboardOptions()));
