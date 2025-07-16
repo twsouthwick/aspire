@@ -225,4 +225,9 @@
     <PackageVersion Update="System.Formats.Asn1" Version="$(SystemFormatsAsn1Version)" />
     <PackageVersion Update="System.Text.Json" Version="$(SystemTextJsonVersion)" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Bcl.Memory" Version="9.0.6" />
+    <PackageVersion Include="Microsoft.Bcl.TimeProvider" Version="9.0.6" />
+  </ItemGroup>
 </Project>
