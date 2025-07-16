@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Net;
@@ -8,12 +8,14 @@ namespace Microsoft.Extensions.ServiceDiscovery.Dns.Resolver;
 
 internal static class ResolvConf
 {
+#if NET
     [SupportedOSPlatform("linux")]
     [SupportedOSPlatform("osx")]
     public static ResolverOptions GetOptions()
     {
         return GetOptions(new StreamReader("/etc/resolv.conf"));
     }
+#endif
 
     public static ResolverOptions GetOptions(TextReader reader)
     {

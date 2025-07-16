@@ -1,12 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>$(DefaultTargetFramework)</TargetFramework>
+    <TargetFrameworks>$(DefaultTargetFramework);net462</TargetFrameworks>
     <IsPackable>true</IsPackable>
-    <IsAotCompatible>true</IsAotCompatible>
+    <IsAotCompatible Condition=" '$(TargetFramework)' == 'net462' ">true</IsAotCompatible>
     <Description>Provides extensions to HttpClient to resolve well-known hostnames to concrete endpoints based on DNS records. Useful for service resolution in orchestrators such as Kubernetes.</Description>
     <PackageIconFullPath>$(DefaultDotnetIconFullPath)</PackageIconFullPath>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Microsoft.Extensions.ServiceDiscovery.Abstractions\FrameworkExtensions.Shared.cs" Link="FrameworkExtensions.Shared.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
