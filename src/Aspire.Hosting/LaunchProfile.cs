@@ -57,4 +57,10 @@ public sealed class LaunchProfile
     /// </summary>
     [JsonPropertyName("environmentVariables")]
     public Dictionary<string, string> EnvironmentVariables { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the flag indicating whether to use 64-bit mode for the launch profile.
+    /// </summary>
+    [JsonPropertyName("use64Bit")]
+    public bool? Use64Bit { get; set; }
 }
